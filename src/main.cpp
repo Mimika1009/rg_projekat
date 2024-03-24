@@ -31,8 +31,8 @@ void renderQuad();
 
 // settings
 float exposure = 1.0f;
-const unsigned int SCR_WIDTH = 1600;
-const unsigned int SCR_HEIGHT = 1200;
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
 
 // camera
 
@@ -162,11 +162,13 @@ int main() {
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
+    //blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     //FaceCulling
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-
 
     // build and compile shaders
     // -------------------------
@@ -174,6 +176,7 @@ int main() {
     Shader skyboxShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
     Shader shaderBlur("resources/shaders/blur.vs", "resources/shaders/blur.fs");
     Shader shaderBloomFinal("resources/shaders/bloom_final.vs", "resources/shaders/bloom_final.fs");
+    Shader blendingShader("resources/shaders/2.model_lighting.vs", "resources/shaders/blending.fs");
 
     // load models
     // -----------
@@ -358,6 +361,10 @@ int main() {
         glm::mat4 view = programState->camera.GetViewMatrix();
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
+
+        blendingShader.use();
+        blendingShader.setMat4("projection", projection);
+        blendingShader.setMat4("view", view);
         //draw skybox_____________________________________________________
         glDepthFunc(GL_LEQUAL);
         skyboxShader.use();
@@ -399,19 +406,44 @@ int main() {
         ourShader.setFloat("pointLights[1].linear", pointLight.linear);
         ourShader.setFloat("pointLights[1].quadratic", pointLight.quadratic);
 
-
         // render the loaded model
         //render barn
         glm::mat4 modelBarn = glm::mat4(1.0f);
         ourShader.setMat4("model", modelBarn);
         barnModel.Draw(ourShader);
+
+        //transparent shader setting
+        blendingShader.use();
+        blendingShader.setVec3("viewPosition", programState->camera.Position);
+        blendingShader.setFloat("material.shininess", 32.0f);
+        //dirLight
+        blendingShader.setVec3("dirLight.direction", glm::vec3(-0.2f, -1.0f, -0.3f));
+        blendingShader.setVec3("dirLight.ambient", glm::vec3(0.3f));
+        blendingShader.setVec3("dirLight.diffuse", glm::vec3(0.3f));
+        blendingShader.setVec3("dirLight.specular", glm::vec3(0.2));
+        //Point light 1
+        blendingShader.setVec3("pointLights[0].position", glm::vec3(-14.0f, 6.15f, -3.0f));
+        blendingShader.setVec3("pointLights[0].ambient", pointLight.ambient);
+        blendingShader.setVec3("pointLights[0].diffuse", pointLight.diffuse);
+        blendingShader.setVec3("pointLights[0].specular", pointLight.specular);
+        blendingShader.setFloat("pointLights[0].constant", pointLight.constant);
+        blendingShader.setFloat("pointLights[0].linear", pointLight.linear);
+        blendingShader.setFloat("pointLights[0].quadratic", pointLight.quadratic);
+        //Point light 2
+        blendingShader.setVec3("pointLights[1].position", glm::vec3(-19.5f, 1.5f+sin(currentFrame)*0.8f, -0.92f));
+        blendingShader.setVec3("pointLights[1].ambient", pointLight.ambient*1.5f);
+        blendingShader.setVec3("pointLights[1].diffuse", pointLight.diffuse+sin(currentFrame));
+        blendingShader.setVec3("pointLights[1].specular", pointLight.specular+1.6f*sin(currentFrame));
+        blendingShader.setFloat("pointLights[1].constant", pointLight.constant);
+        blendingShader.setFloat("pointLights[1].linear", pointLight.linear);
+        blendingShader.setFloat("pointLights[1].quadratic", pointLight.quadratic);
         //render magic wand
         glm::mat4 modelMagic = glm::mat4(1.0f);
         modelMagic = glm::translate(modelMagic,glm::vec3(-19.5f, 0.4f+sin(currentFrame)*0.8f, -0.92f));
         modelMagic = glm::scale(modelMagic, glm::vec3(0.009));
         modelMagic = glm::rotate(modelMagic,glm::radians(currentFrame*50.0f), glm::vec3(0.0f ,1.0f, 0.0f));
-        ourShader.setMat4("model", modelMagic);
-        magicModel.Draw(ourShader);
+        blendingShader.setMat4("model", modelMagic);
+        magicModel.Draw(blendingShader);
 
 
         // blur bright fragments with two-pass Gaussian Blur
@@ -521,13 +553,8 @@ void DrawImGui(ProgramState *programState) {
 
     {
         static float f = 0.0f;
-        ImGui::Begin("Hello window");
-        ImGui::Text("Hello text");
-        ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
+        ImGui::Begin("Settings");
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
-        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition, 0.01);
-        ImGui::DragFloat("Backpack scale", &programState->backpackScale, 0.01, 0.001, 40.0);
-
         ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
         ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
         ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
